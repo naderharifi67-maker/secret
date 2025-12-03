@@ -58,7 +58,8 @@
             <div class="p-4 border-b border-gray-100 bg-gray-50 text-sm text-gray-600">
                 <p>
                     <span class="font-semibold text-indigo-600">شناسه کاربری شما:</span>
-                    <span id="userIdDisplay" class="font-mono text-xs text-red-500 break-all ltr:font-bold"></span>
+                    <!-- Added ltr class here to ensure UID is left-to-right -->
+                    <span id="userIdDisplay" class="font-mono text-xs text-red-500 break-all ltr"></span>
                 </p>
                 <p class="mt-1 text-xs">این شناسه در کنار پیام‌های شما نمایش داده می‌شود.</p>
             </div>
@@ -98,8 +99,8 @@
     <script type="module">
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase and App Variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-chat-app';
@@ -113,6 +114,8 @@
             appId: "1:12045494814:web:28d69b78a2277cd003dc0f",
             measurementId: "G-CQYLY3FLMM"
         };
+
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         
         let db, auth, userId = null;
         let isAuthReady = false;
@@ -163,8 +166,12 @@
                 // Enable debug logging for Firestore
                 setLogLevel('debug');
 
-                // Sign in logic: Always use Anonymous Sign-in for simplicity and compatibility
-                await retryOperation(() => signInAnonymously(auth));
+                // Sign in logic: Prefer custom token for Canvas environment, fallback to Anonymous
+                if (initialAuthToken) {
+                     await retryOperation(() => signInWithCustomToken(auth, initialAuthToken));
+                } else {
+                    await retryOperation(() => signInAnonymously(auth));
+                }
 
                 // Wait for the auth state to be established
                 onAuthStateChanged(auth, (user) => {
@@ -181,7 +188,7 @@
                         listenForMessages();
                     } else {
                         // This should ideally not happen after successful sign-in, but handled for completeness
-                        showAlert("خطای احراز هویت: کاربر ناشناس است.");
+                        showAlert("خطای احراز هویت: کاربر ناشناس است. لطفاً صفحه را رفرش کنید.");
                     }
                 });
 
@@ -192,11 +199,11 @@
                 
                 // بررسی خطای پیکربندی (مشکل قبلی)
                 if (error.code === 'auth/configuration-not-found') {
-                    errorMessage = "خطای احراز هویت: لطفاً مطمئن شوید که در کنسول Firebase (بخش Authentication)، روش ورود 'Anonymous' را فعال کرده باشید.";
+                    errorMessage = "خطای احراز هویت: لطفاً مطمئن شوید که در کنسول Firebase (بخش Authentication)، روش ورود 'Anonymous' فعال باشد.";
                 } 
                 // بررسی خطای شبکه (مشکل جدید)
                 else if (error.code === 'auth/network-request-failed') {
-                    errorMessage = "خطای شبکه در احراز هویت: اتصال اینترنت شما ممکن است قطع باشد، یا فایروال (Firewall) محلی مانع دسترسی به سرورهای Firebase شده است. لطفاً اتصال شبکه خود را بررسی کنید.";
+                    errorMessage = "خطای شبکه در احراز هویت: اتصال اینترنت شما ممکن است قطع باشد، یا فایروال محلی مانع دسترسی شده است. لطفاً شبکه خود را بررسی کنید.";
                 }
 
                 showAlert(errorMessage);
@@ -250,8 +257,9 @@
 
             const messagesColRef = collection(db, getCollectionPath());
             
-            // Create a query: Get all messages, ordered by timestamp descending
-            const q = query(messagesColRef, orderBy('timestamp', 'desc'));
+            // NOTE: We remove orderBy('timestamp', 'desc') here to avoid requiring a composite index 
+            // in Firestore, which can be difficult to manage. We will sort in the client.
+            const q = query(messagesColRef); 
 
             // Set up real-time listener
             onSnapshot(q, (snapshot) => {
@@ -264,14 +272,20 @@
                     messages.push({
                         id: doc.id,
                         ...data,
+                        // Add raw timestamp for client-side sorting
+                        sortTimestamp: data.timestamp ? data.timestamp.toMillis() : 0, 
                         displayTime: time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
                     });
                 });
 
-                renderMessages(messages.reverse()); // Reverse back for chronological display (oldest at top)
+                // Client-side sorting by sortTimestamp (oldest at top)
+                messages.sort((a, b) => a.sortTimestamp - b.sortTimestamp);
+
+                renderMessages(messages);
             }, (error) => {
                 console.error("Error listening to messages: ", error);
-                showAlert("خطا در به‌روزرسانی پیام‌ها.");
+                // The error message here can often be a security rule violation
+                showAlert("خطا در به‌روزرسانی پیام‌ها. ممکن است دسترسی شما محدود شده باشد.");
             });
         }
 
@@ -286,7 +300,9 @@
             }
             noMessages.classList.add('hidden');
 
-            messages.forEach(message => {
+            // Iterate in reverse for the flex-direction: column-reverse container 
+            // to show the latest message at the bottom visually.
+            messages.reverse().forEach(message => { 
                 const isMine = message.senderId === userId;
                 
                 // Message bubble styling
@@ -302,7 +318,7 @@
                 
                 messageElement.innerHTML = `
                     <div class="max-w-[80%] p-3 rounded-xl shadow-md ${bubbleClasses}">
-                        <div class="text-xs font-semibold mb-1 ${senderIdClasses} break-all ltr:font-bold">
+                        <div class="text-xs font-semibold mb-1 ${senderIdClasses} break-all ltr">
                             ${isMine ? 'شما' : message.senderId}
                         </div>
                         <p class="text-base whitespace-pre-wrap">${message.text}</p>
@@ -314,8 +330,10 @@
                 messagesList.appendChild(messageElement);
             });
             
-            // Scroll to the bottom on new message
-            messagesList.scrollTop = messagesList.scrollHeight;
+            // Scroll to the bottom on load/new message (using setTimeout to ensure DOM is updated)
+             setTimeout(() => {
+                messagesList.scrollTop = messagesList.scrollHeight;
+            }, 0);
         }
 
         // --- 4. Event Listeners ---
