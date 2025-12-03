@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ÅÌ«„ù—”«‰ «‘ —«òÌ Real-time</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom scrollbar styling for the chat container */
+        .message-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .message-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .message-container::-webkit-scrollbar-thumb {
+            background: #9ca3af; /* Gray-400 */
+            border-radius: 10px;
+        }
+        .message-container::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* Gray-500 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Application Container -->
+    <div id="app" class="bg-white shadow-2xl rounded-xl w-full max-w-lg mx-auto overflow-hidden transition-all duration-300">
+        <header class="bg-indigo-600 p-4 text-white text-center">
+            <h1 class="text-2xl font-bold">œ› —çÂ ÅÌ«„ùÂ«Ì «‘ —«òÌ</h1>
+            <p class="text-sm opacity-90 mt-1">ÅÌ«„ »ê–«—Ìœ  « œÊ” «‰ «‰ »Â ’Ê—  “‰œÂ »»Ì‰‰œ.</p>
+        </header>
+
+        <!-- Loading Indicator / Initialization -->
+        <div id="loading" class="p-8 text-center text-gray-500">
+            <svg class="animate-spin h-5 w-5 text-indigo-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p>œ— Õ«· « ’«· »Â Å«Ìê«Â œ«œÂ...</p>
+        </div>
+
+        <!-- Main Content (Hidden until initialized) -->
+        <div id="main-content" class="hidden">
+            
+            <!-- User Info and Status -->
+            <div class="p-4 border-b border-gray-100 bg-gray-50 text-sm text-gray-600">
+                <p>
+                    <span class="font-semibold text-indigo-600">‘‰«”Â ò«—»—Ì ‘„«:</span>
+                    <span id="userIdDisplay" class="font-mono text-xs text-red-500 break-all ltr:font-bold"></span>
+                </p>
+                <p class="mt-1 text-xs">«Ì‰ ‘‰«”Â œ— ò‰«— ÅÌ«„ùÂ«Ì ‘„« ‰„«Ì‘ œ«œÂ „Ìù‘Êœ.</p>
+            </div>
+
+            <!-- Messages Display Area -->
+            <div id="messagesList" class="message-container p-4 h-80 overflow-y-auto flex flex-col-reverse">
+                <!-- Messages will be inserted here -->
+                <p id="noMessages" class="text-center text-gray-400 mt-4 hidden">Â‰Ê“ ÅÌ«„Ì «—”«· ‰‘œÂ «” .</p>
+            </div>
+
+            <!-- Message Input Form -->
+            <form id="messageForm" class="p-4 border-t border-gray-200 flex space-x-2 space-x-reverse">
+                <input type="text" id="messageInput" placeholder="ÅÌ«„ ŒÊœ —« »‰ÊÌ”Ìœ..."
+                       class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                       required autocomplete="off">
+                <button type="submit" id="sendButton"
+                        class="bg-indigo-500 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition duration-150 shadow-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg id="sendIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                    <svg id="spinner" class="animate-spin h-5 w-5 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modals for Alerts (instead of alert()) -->
+    <div id="alertModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full text-center">
+            <h3 class="text-lg font-bold text-red-600 mb-4">Œÿ«</h3>
+            <p id="alertMessage" class="text-gray-700 mb-6"></p>
+            <button onclick="document.getElementById('alertModal').classList.add('hidden'); document.getElementById('alertModal').classList.remove('flex');"
+                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition duration-150">
+                »” ‰
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase and App Variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-chat-app';
+        //  ‰ŸÌ„«  Ê«ﬁ⁄Ì ›«Ì—»Ì” (òÂ  Ê”ÿ ‘„« «—«∆Â ‘œÂ «” )
+        const firebaseConfig = {
+            apiKey: "AIzaSyDKqUR8lUZWmDU52Gc62-g3pXupVYsNI8o",
+            authDomain: "secret-9e293.firebaseapp.com",
+            projectId: "secret-9e293",
+            storageBucket: "secret-9e293.firebasestorage.app",
+            messagingSenderId: "12045494814",
+            appId: "1:12045494814:web:28d69b78a2277cd003dc0f",
+            measurementId: "G-CQYLY3FLMM"
+        };
+        
+        let db, auth, userId = null;
+        let isAuthReady = false;
+
+        // UI Elements
+        const loadingDiv = document.getElementById('loading');
+        const mainContentDiv = document.getElementById('main-content');
+        const messagesList = document.getElementById('messagesList');
+        const messageForm = document.getElementById('messageForm');
+        const messageInput = document.getElementById('messageInput');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const sendButton = document.getElementById('sendButton');
+        const sendIcon = document.getElementById('sendIcon');
+        const spinner = document.getElementById('spinner');
+        const noMessages = document.getElementById('noMessages');
+
+        // Function to show custom modal alert
+        function showAlert(message) {
+            document.getElementById('alertMessage').textContent = message;
+            document.getElementById('alertModal').classList.add('flex');
+            document.getElementById('alertModal').classList.remove('hidden');
+        }
+
+        // Helper function for exponential backoff retry logic (for API calls)
+        async function retryOperation(operation, maxRetries = 5, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    return await operation();
+                } catch (error) {
+                    if (i === maxRetries - 1) {
+                        throw error;
+                    }
+                    // Wait with exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+        }
+
+        // --- 1. Firebase Initialization and Authentication ---
+
+        async function initializeFirebase() {
+            try {
+                // Initialize Firebase App
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Enable debug logging for Firestore
+                setLogLevel('debug');
+
+                // Sign in logic: Always use Anonymous Sign-in for simplicity and compatibility
+                await retryOperation(() => signInAnonymously(auth));
+
+                // Wait for the auth state to be established
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        isAuthReady = true;
+                        userIdDisplay.textContent = userId;
+                        
+                        // Hide loading and show content
+                        loadingDiv.classList.add('hidden');
+                        mainContentDiv.classList.remove('hidden');
+
+                        // Start listening for messages only after auth is ready
+                        listenForMessages();
+                    } else {
+                        // This should ideally not happen after successful sign-in, but handled for completeness
+                        showAlert("Œÿ«Ì «Õ—«“ ÂÊÌ : ò«—»— ‰«‘‰«” «” .");
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase Initialization/Auth Error:", error);
+                
+                let errorMessage = `Œÿ« œ— « ’«· »Â Firebase: ${error.message}`;
+                // Specific check for the configuration error, advising user to check console
+                if (error.code === 'auth/configuration-not-found') {
+                    errorMessage = "Œÿ«Ì «Õ—«“ ÂÊÌ : ·ÿ›« „ÿ„∆‰ ‘ÊÌœ òÂ œ— ò‰”Ê· Firebase (»Œ‘ Authentication)° —Ê‘ Ê—Êœ 'Anonymous' —« ›⁄«· ò—œÂ »«‘Ìœ. «Ì‰ Œÿ« „⁄„Ê·« »Â œ·Ì· €Ì—›⁄«· »Êœ‰ «Ì‰  ‰ŸÌ„ œ— Å—ÊéÂ ‘„« —Œ „ÌùœÂœ.";
+                }
+
+                showAlert(errorMessage);
+                loadingDiv.textContent = 'Œÿ« œ— « ’«·. ·ÿ›«  ‰ŸÌ„«  Firebase —« »——”Ì ò‰Ìœ.';
+            }
+        }
+
+        // --- 2. Firestore Operations ---
+
+        // Construct the public collection path for shared messages
+        function getCollectionPath() {
+            return `artifacts/${appId}/public/data/messages`;
+        }
+
+        // Function to send a new message
+        async function sendMessage(text) {
+            if (!isAuthReady || !userId) {
+                showAlert("”Ì” „ Â‰Ê“ ¬„«œÂ ‰Ì” . ·ÿ›« ’»— ò‰Ìœ.");
+                return;
+            }
+
+            const messageData = {
+                text: text,
+                senderId: userId,
+                timestamp: serverTimestamp() // Use server timestamp for accurate ordering
+            };
+
+            // Disable button and show spinner while sending
+            sendButton.disabled = true;
+            sendIcon.classList.add('hidden');
+            spinner.classList.remove('hidden');
+
+            try {
+                const messagesCol = collection(db, getCollectionPath());
+                await retryOperation(() => addDoc(messagesCol, messageData));
+                messageInput.value = ''; // Clear input on success
+            } catch (error) {
+                console.error("Error adding document: ", error);
+                showAlert(`Œÿ« œ— «—”«· ÅÌ«„: ${error.message}`);
+            } finally {
+                // Re-enable button and hide spinner
+                sendButton.disabled = false;
+                sendIcon.classList.remove('hidden');
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // Function to listen for real-time messages
+        function listenForMessages() {
+            if (!isAuthReady || !userId || !db) return;
+
+            const messagesColRef = collection(db, getCollectionPath());
+            
+            // Create a query: Get all messages, ordered by timestamp descending
+            const q = query(messagesColRef, orderBy('timestamp', 'desc'));
+
+            // Set up real-time listener
+            onSnapshot(q, (snapshot) => {
+                const messages = [];
+                snapshot.forEach((doc) => {
+                    // Pull data and convert timestamp if it exists
+                    const data = doc.data();
+                    const time = data.timestamp ? data.timestamp.toDate() : new Date();
+                    
+                    messages.push({
+                        id: doc.id,
+                        ...data,
+                        displayTime: time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+                    });
+                });
+
+                renderMessages(messages.reverse()); // Reverse back for chronological display (oldest at top)
+            }, (error) => {
+                console.error("Error listening to messages: ", error);
+                showAlert("Œÿ« œ— »Âù—Ê“—”«‰Ì ÅÌ«„ùÂ«.");
+            });
+        }
+
+        // --- 3. UI Rendering ---
+
+        function renderMessages(messages) {
+            messagesList.innerHTML = '';
+            
+            if (messages.length === 0) {
+                noMessages.classList.remove('hidden');
+                return;
+            }
+            noMessages.classList.add('hidden');
+
+            messages.forEach(message => {
+                const isMine = message.senderId === userId;
+                
+                // Message bubble styling
+                const bubbleClasses = isMine 
+                    ? 'bg-indigo-500 text-white self-end rounded-br-none' 
+                    : 'bg-gray-200 text-gray-800 self-start rounded-tl-none';
+                
+                // Sender ID styling
+                const senderIdClasses = isMine ? 'text-indigo-200' : 'text-gray-500';
+
+                const messageElement = document.createElement('div');
+                messageElement.className = `flex mb-3 ${isMine ? 'justify-end' : 'justify-start'}`;
+                
+                messageElement.innerHTML = `
+                    <div class="max-w-[80%] p-3 rounded-xl shadow-md ${bubbleClasses}">
+                        <div class="text-xs font-semibold mb-1 ${senderIdClasses} break-all ltr:font-bold">
+                            ${isMine ? '‘„«' : message.senderId}
+                        </div>
+                        <p class="text-base whitespace-pre-wrap">${message.text}</p>
+                        <div class="text-left mt-1 text-xs opacity-70">
+                            ${message.displayTime}
+                        </div>
+                    </div>
+                `;
+                messagesList.appendChild(messageElement);
+            });
+            
+            // Scroll to the bottom on new message
+            messagesList.scrollTop = messagesList.scrollHeight;
+        }
+
+        // --- 4. Event Listeners ---
+
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const messageText = messageInput.value.trim();
+            if (messageText) {
+                sendMessage(messageText);
+            }
+        });
+
+        // Start the application setup
+        window.onload = initializeFirebase;
+
+    </script>
+</body>
+</html>
